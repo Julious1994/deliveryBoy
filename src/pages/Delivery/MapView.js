@@ -42,12 +42,14 @@ function MapView(props) {
 	const [billId, setBillId] = useState();
 	const [tifin, setTifin] = useState();
 	const [tifinList, setTifinList] = useState([]);
+	const [region, setRegion] = useState(initialRegion);
 
 	const mapViewRef = useRef();
 	const maskInputRef = useRef();
 
 	const [currentPosition, setCurrentPosition] = useState();
 	const [addressCoords, setAddressCoords] = useState();
+	const [addressCoordsList,setAddressCoordsList] = useState([]);
 
 	function handleDeliverTo(index) {
 		if (index === 0) {
@@ -117,16 +119,33 @@ function MapView(props) {
 		});
 	}
 
+	const fetchCoords = React.useCallback(async (list) => {
+		const coordsList = [];
+		for(let i = 0; i < list.length; i++) {
+			const tifin = list[i];
+			const json = await geoCoder.from(tifin[addressMap[tifin.mealType]]);
+			var location = json.results[0].geometry.location;
+			console.log('tifin', tifin);		
+			coordsList.push({ 
+				latitude: location.lat, 
+				longitude: location.lng, 
+				latitudeDelta: 0.1, 
+				longitudeDelta: 0.1,
+				mobile: tifin.mobile,
+				name: tifin.customerName, 
+			});
+			setAddressCoordsList(coordsList);
+		}
+		setRegion(coordsList[0]);
+		// setLoading(false);
+	}, [])
+
 	const fetchTifin = React.useCallback(() => {
-		console.log('called');
 		setLoading(true);
 		service.get(`DeliveryBoyTiffinList?deliveryBoyid=${user.deliveryBoyid}`).then(res => {
-		
-			setTimeout(() => {
-				setLoading(false);
-			}, 500);
 			if (res.Status === '1') {
 				setTifinList(res.Body);
+				fetchCoords(res.Body)
 			}
 		});
 	}, [user]);
@@ -137,6 +156,7 @@ function MapView(props) {
 
 	useEffect(() => {
 		props.navigation.setParams({ logout });
+		geoCoder.init(GOOGLE_API_KEY);
 		geolocation.getCurrentPosition(
 			(position) => {
 				setCurrentPosition(position.coords);
@@ -149,10 +169,8 @@ function MapView(props) {
 	useEffect(() => {
 		if (tifin) {
 			setLoading(true);
-			geoCoder.init(GOOGLE_API_KEY);
 			geoCoder.from(tifin[addressMap[tifin.mealType]])
 				.then(json => {
-					console.log('json', json);
 					var location = json.results[0].geometry.location;
 					setAddressCoords({ latitude: location.lat, longitude: location.lng });
 				})
@@ -349,17 +367,42 @@ function MapView(props) {
 	return (
 		<View>
 			<MapViewComponent
-				region={initialRegion}
+				region={region}
 				style={{ width: "100%", height: "50%" }}
 				ref={c => mapViewRef.current = c}
 			>
 				{
 					currentPosition &&
-					<MapViewComponent.Marker key={`coordinate_1`} coordinate={currentPosition} />
+					addressCoordsList.map((coords, i) => (
+						<MapViewDirections
+							key={i}
+							origin={{ ...currentPosition, accuracy: 0.05 }}
+							destination={coords}
+							apikey={GOOGLE_API_KEY}
+							strokeWidth={7}
+							strokeColor={'red'}
+							mode="DRIVING"
+							onReady={result => {
+								setLoading(false);
+								mapViewRef.current.fitToCoordinates(result.coordinates, {});
+							}}
+						/>
+					))
 				}
 				{
+					currentPosition &&
+					<MapViewComponent.Marker 
+						key={`coordinate_1`} 
+						coordinate={currentPosition} 
+					/>
+				}{
 					addressCoords &&
-					<MapViewComponent.Marker key={`coordinate_2`} coordinate={addressCoords} />
+					<MapViewComponent.Marker 
+						key={`coordinate_2`} 
+						coordinate={addressCoords} 
+						title={tifin.name}
+						description={tifin.mobile} 
+					/>
 				}
 				{
 					currentPosition && tifin &&
