@@ -13,7 +13,7 @@
     "@mapbox/polyline": "^1.1.0",
     "@react-native-community/async-storage": "^1.6.2",
     "@react-native-community/geolocation": "^2.0.2",
-    "moment": "^2.24.0",
+    "moment": "^2.29.4",
     "react": "16.9.0",
     "react-native": "0.61.1",
     "react-native-calendars": "^1.212.0",
